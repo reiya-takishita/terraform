@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "リソース名のプレフィックス"
   type        = string
-  default     = "example"
+  default     = "example1"
 }
 
 variable "vpc_cidr" {
