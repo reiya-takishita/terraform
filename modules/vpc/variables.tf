@@ -4,7 +4,7 @@ variable "name_prefix" {
 }
 
 variable "cidr_block" {
-  description = "VPCのCIDRブロック"
+  description = "VPCのCIDRブロックです"
   type        = string
 }
 
