@@ -17,7 +17,7 @@ resource "aws_instance" "this" {
   associate_public_ip_address = true
 
   tags = {
-    Name = "${var.name_prefix}-web11"
+    Name = "${var.name_prefix}-web"
   }
 }
 
