@@ -26,7 +26,12 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Environment (dev, stg, prod)"
+  description = "Environment (dev, stg, pro1d)"
+  type        = string
+  default     = "dev"
+}
+variable "environment2" {
+  description = "Environment (dev, stg, pro1d)"
   type        = string
   default     = "dev"
 }
