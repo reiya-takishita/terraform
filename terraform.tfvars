@@ -2,6 +2,3 @@ aws_region = "ap-northeast-1"
 project_name = "example10"
 vpc_cidr = "10.0.0.0/16"
 web_instance_type = "t3.micro"
-bucket_name = "example-bucket-12345"
-s3_versioning_enabled = true
-cloudfront_price_class = "PriceClass_100"
