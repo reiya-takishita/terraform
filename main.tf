@@ -1,428 +1,490 @@
 terraform {
-  required_version = ">= 1.0"
-
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = ">= 5.0"
     }
   }
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 }
 
-variable "github_access_token" {
-  description = "GitHub personal access token (required for GitHub repositories)"
-  type        = string
-  sensitive   = true
-  default     = "your-github-access-token"
+# VPC の CIDR ブロックを変更
+resource "aws_vpc" "main" {
+  cidr_block = var.vpc_cidr
+  tags       = { Name = "three-tier-vpc" }
 }
 
-variable "build_spec" {
-  description = "Base build specification (without appRoot)"
-  type        = string
-  default     = <<-EOT
-version: 1
-applications:
-  - frontend:
-      phases:
-        preBuild:
-          commands:
-            - export NODE_OPTIONS=--openssl-legacy-provider
-            - yarn install --frozen-lockfile || yarn install
-        build:
-          commands:
-            - yarn build
-      artifacts:
-        baseDirectory: .next
-        files:
-          - '**/*'
-      cache:
-        paths:
-          - .next/cache/**/*
-          - node_modules/**/*
-EOT
+# Public サブネット A (ap-northeast-1a)
+resource "aws_subnet" "public_a" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_a_cidr
+  map_public_ip_on_launch = true
+  availability_zone       = var.az_a
+  tags                    = { Name = "public-a" }
 }
 
-variable "framework" {
-  description = "Frontend framework (react, vue, angular, nextjs, etc.). Leave empty for auto-detection."
-  type        = string
-  default     = null
+# Public サブネット B (ap-northeast-1b) を追加
+resource "aws_subnet" "public_b" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_b_cidr
+  map_public_ip_on_launch = true
+  availability_zone       = var.az_b
+  tags                    = { Name = "public-b" }
 }
 
-variable "domain_name" {
-  description = "Custom domain name"
-  type        = string
-  default     = ""
+# Private App サブネット A (ap-northeast-1a)
+resource "aws_subnet" "private_app_a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_app_subnet_a_cidr
+  availability_zone = var.az_a
+  tags              = { Name = "private-app-a" }
 }
 
-variable "enable_auto_branch_creation" {
-  description = "Enable automatic branch creation"
-  type        = bool
-  default     = false
+# Private App サブネット B (ap-northeast-1b) を追加
+resource "aws_subnet" "private_app_b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_app_subnet_b_cidr
+  availability_zone = var.az_b
+  tags              = { Name = "private-app-b" }
 }
 
-variable "auto_branch_creation_patterns" {
-  description = "Patterns for automatic branch creation"
-  type        = list(string)
-  default     = ["feature/*", "dev"]
+# Private DB サブネット A (ap-northeast-1a)
+resource "aws_subnet" "private_db_a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_db_subnet_a_cidr
+  availability_zone = var.az_a
+  tags              = { Name = "private-db-a" }
 }
 
-variable "platform" {
-  description = "Platform (WEB_COMPUTE for SSR, WEB for static)"
-  type        = string
-  default     = "WEB_COMPUTE"
+# Private DB サブネット B (ap-northeast-1b) を追加
+resource "aws_subnet" "private_db_b" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_db_subnet_b_cidr
+  availability_zone = var.az_b
+  tags              = { Name = "private-db-b" }
+}
+# Internet Gateway を追加し、VPC にアタッチ
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "three-tier-igw" }
 }
 
-variable "stage" {
-  description = "Stage (PRODUCTION, BETA, DEVELOPMENT, EXPERIMENTAL)"
-  type        = string
-  default     = "DEVELOPMENT"
+# NAT Gateway 用の EIP を追加
+resource "aws_eip" "nat_gw" {
+  depends_on = [aws_internet_gateway.main] # IGWが先に作成されるように依存関係を設定
+  tags       = { Name = "three-tier-nat-eip" }
+}
+# NAT Gateway を Public Subnet に配置
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat_gw.id
+  subnet_id     = aws_subnet.public_a.id # Public Subnet A に配置
+  depends_on    = [aws_internet_gateway.main]
+  tags          = { Name = "three-tier-nat-gw" }
 }
 
-variable "enable_basic_auth" {
-  description = "Enable basic authentication"
-  type        = bool
-  default     = false
+# Public サブネット用のルーティングテーブル
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+  tags = { Name = "public-route-table" }
 }
 
-variable "basic_auth_username" {
-  description = "Basic auth username"
-  type        = string
-  default     = ""
+# Public サブネット A をルーティングテーブルに関連付け
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
+  route_table_id = aws_route_table.public.id
 }
 
-variable "basic_auth_password" {
-  description = "Basic auth password"
-  type        = string
-  default     = ""
-  sensitive   = true
+# Public サブネット B をルーティングテーブルに関連付け
+resource "aws_route_table_association" "public_b" {
+  subnet_id      = aws_subnet.public_b.id
+  route_table_id = aws_route_table.public.id
 }
 
-variable "environment_variables" {
-  description = "Environment variables for build"
-  type        = map(string)
-  default     = {environment = "development"}
-  sensitive   = true
+# Private App サブネット用のルーティングテーブル
+resource "aws_route_table" "private_app" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+  tags = { Name = "private-app-route-table" }
 }
 
-variable "enable_notifications" {
-  description = "Enable build notifications"
-  type        = bool
-  default     = true
+# Private App サブネット A をルーティングテーブルに関連付け
+resource "aws_route_table_association" "private_app_a" {
+  subnet_id      = aws_subnet.private_app_a.id
+  route_table_id = aws_route_table.private_app.id
 }
 
-variable "notification_email" {
-  description = "Email for build notifications"
-  type        = string
-  default     = "your-email@example.com"
+# Private App サブネット B をルーティングテーブルに関連付け
+resource "aws_route_table_association" "private_app_b" {
+  subnet_id      = aws_subnet.private_app_b.id
+  route_table_id = aws_route_table.private_app.id
 }
 
-variable "custom_rules" {
-  description = "Custom rewrite and redirect rules"
-  type = list(object({
-    source    = string
-    target    = string
-    status    = string
-    condition = string
-  }))
-  default = []
+# Private DB サブネット用のルーティングテーブル
+resource "aws_route_table" "private_db" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+  tags = { Name = "private-db-route-table" }
 }
 
-# IAM Role for Amplify
-resource "aws_iam_role" "amplify" {
-  name = "${var.project_name}-${var.environment}-amplify-role"
+# Private DB サブネット A をルーティングテーブルに関連付け
+resource "aws_route_table_association" "private_db_a" {
+  subnet_id      = aws_subnet.private_db_a.id
+  route_table_id = aws_route_table.private_db.id
+}
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = ["amplify.${var.aws_region}.amazonaws.com", "amplify.amazonaws.com"]
-        }
-      }
-    ]
-  })
+# Private DB サブネット B をルーティングテーブルに関連付け
+resource "aws_route_table_association" "private_db_b" {
+  subnet_id      = aws_subnet.private_db_b.id
+  route_table_id = aws_route_table.private_db.id
+}
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-amplify-role"
-    Environment = var.environment
-    Project     = var.project_name
+resource "aws_security_group" "alb_sg" {
+  name   = "alb-sg"
+  vpc_id = aws_vpc.main.id
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# IAM Policy for Amplify (最小権限)
-resource "aws_iam_role_policy" "amplify" {
-  name = "${var.project_name}-${var.environment}-amplify-policy"
-  role = aws_iam_role.amplify.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Resource = "arn:aws:logs:*:*:*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:PutMetricData"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
+# ALB のサブネットに public_b を追加し、マルチAZに対応
+resource "aws_lb" "alb" {
+  name               = "three-tier-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+}
+resource "aws_lb_target_group" "tg" {
+  name     = "three-tier-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
 }
 
-# Attach managed policy for Amplify Backend
-resource "aws_iam_role_policy_attachment" "amplify_backend" {
-  role       = aws_iam_role.amplify.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess-Amplify"
-}
-
-# Attach AWSAmplifyServiceRolePolicy for build permissions
-resource "aws_iam_role_policy_attachment" "amplify_service" {
-  role       = aws_iam_role.amplify.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmplifyBackendDeployFullAccess"
-}
-
-# Amplify App
-resource "aws_amplify_app" "main" {
-  name       = "${var.project_name}-${var.environment}"
-  repository = var.repository_url
-
-  # GitHub access token (required for GitHub repositories)
-  access_token = var.github_access_token
-
-  iam_service_role_arn = aws_iam_role.amplify.arn
-
-  # Build spec (null = auto-detection)
-  build_spec = var.build_spec
-  # Platform (WEB_COMPUTE for SSR support)
-  platform = var.platform
-
-  # Environment variables
-  environment_variables = var.environment_variables
-
-  # Custom rules
-  dynamic "custom_rule" {
-    for_each = length(var.custom_rules) > 0 ? var.custom_rules : [
-      {
-        source    = "/<*>"
-        target    = "/index.html"
-        status    = "404-200"
-        condition = null
-      }
-    ]
-    content {
-      source    = custom_rule.value.source
-      target    = custom_rule.value.target
-      status    = custom_rule.value.status
-      condition = custom_rule.value.condition
-    }
-  }
-
-  # Auto branch creation
-  dynamic "auto_branch_creation_config" {
-    for_each = var.enable_auto_branch_creation ? [1] : []
-    content {
-      enable_auto_build             = true
-      enable_basic_auth             = var.enable_basic_auth
-      basic_auth_credentials        = var.enable_basic_auth ? base64encode("${var.basic_auth_username}:${var.basic_auth_password}") : null
-      enable_pull_request_preview   = true
-      pull_request_environment_name = "pr"
-      framework                     = var.framework
-      stage                         = var.stage
-    }
-  }
-
-  auto_branch_creation_patterns = var.enable_auto_branch_creation ? var.auto_branch_creation_patterns : null
-
-  # Enable auto branch deletion
-  enable_branch_auto_deletion = true
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}"
-    Environment = var.environment
-    Project     = var.project_name
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = 80
+  protocol          = "HTTP"
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.tg.arn
   }
 }
 
-# Amplify Branch
-resource "aws_amplify_branch" "main" {
-  app_id      = aws_amplify_app.main.id
-  branch_name = var.repository_branch
+resource "aws_launch_template" "app_lt" {
+  name          = "app-lt"
+  image_id      = "ami-0e1d06225679bc1c5"
+  instance_type = "t3.micro"
+  user_data     = base64encode("#!/bin/bash\n amazon-linux-extras enable nginx1 && yum clean metadata && yum -y install nginx && systemctl enable nginx && systemctl start nginx")
+}
 
-  framework = var.framework
-  stage     = var.stage
-
-  enable_auto_build = true
-
-  # Basic authentication
-  enable_basic_auth = var.enable_basic_auth
-  basic_auth_credentials = var.enable_basic_auth ? base64encode("${var.basic_auth_username}:${var.basic_auth_password}") : null
-
-  # Environment variables (branch-specific)
-  environment_variables = var.environment_variables
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-${var.repository_branch}"
-    Environment = var.environment
-    Project     = var.project_name
+resource "aws_autoscaling_group" "app_asg" {
+  name                      = "app-asg"
+  max_size                  = 2
+  min_size                  = 1
+  desired_capacity          = 1
+  vpc_zone_identifier       = [aws_subnet.private_app_a.id, aws_subnet.private_app_b.id] # ASG のサブネットに private_app_b を追加
+  target_group_arns         = [aws_lb_target_group.tg.arn]
+  launch_template {
+    id      = aws_launch_template.app_lt.id
+    version = "$Latest"
   }
 }
 
-# Amplify Domain Association (custom domain)
-resource "aws_amplify_domain_association" "main" {
-  count       = var.domain_name != "" ? 1 : 0
-  app_id      = aws_amplify_app.main.id
-  domain_name = var.domain_name
+# RDS サブネットグループに private_db_b を追加し、マルチAZに対応
+resource "aws_db_subnet_group" "db_subnet" {
+  name       = "db-subnet"
+  subnet_ids = [aws_subnet.private_db_a.id, aws_subnet.private_db_b.id]
+}
+resource "aws_db_instance" "db" {
+  allocated_storage    = 20
+  db_subnet_group_name = aws_db_subnet_group.db_subnet.name
+  engine               = "mysql"
+  engine_version       = "8.0"
+  instance_class       = "db.t3.micro"
+  username             = "admin"
+  password             = "examplepass1234!" # sample only
+  skip_final_snapshot  = true
+}
 
-  # Main branch
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = ""
+# Public サブネット用の Network ACL
+resource "aws_network_acl" "public" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "public-nacl" }
+
+  # Inbound Rules
+  ingress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 80
+    to_port    = 80
+  }
+  ingress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 443
+    to_port    = 443
+  }
+  ingress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
   }
 
-  # www subdomain
-  sub_domain {
-    branch_name = aws_amplify_branch.main.branch_name
-    prefix      = "www"
+  # Outbound Rules
+  egress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 80
+    to_port    = 80
   }
-}
-
-# Amplify Webhook (for manual triggers)
-resource "aws_amplify_webhook" "main" {
-  app_id      = aws_amplify_app.main.id
-  branch_name = aws_amplify_branch.main.branch_name
-  description = "Webhook for ${var.project_name} ${var.environment}"
-}
-
-# SNS Topic for notifications
-resource "aws_sns_topic" "amplify_notifications" {
-  count = var.enable_notifications ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-amplify-notifications"
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-amplify-notifications"
-    Environment = var.environment
-    Project     = var.project_name
+  egress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 443
+    to_port    = 443
   }
-}
-
-# SNS Topic Subscription
-resource "aws_sns_topic_subscription" "amplify_notifications" {
-  count     = var.enable_notifications && var.notification_email != "" ? 1 : 0
-  topic_arn = aws_sns_topic.amplify_notifications[0].arn
-  protocol  = "email"
-  endpoint  = var.notification_email
-}
-
-# SNS Topic Policy (EventBridgeからの発行を許可)
-resource "aws_sns_topic_policy" "amplify_notifications" {
-  count  = var.enable_notifications ? 1 : 0
-  arn    = aws_sns_topic.amplify_notifications[0].arn
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "events.amazonaws.com"
-        }
-        Action   = "SNS:Publish"
-        Resource = aws_sns_topic.amplify_notifications[0].arn
-      }
-    ]
-  })
-}
-
-# EventBridge Rule for Amplify build notifications
-resource "aws_cloudwatch_event_rule" "amplify_build" {
-  count       = var.enable_notifications ? 1 : 0
-  name        = "${var.project_name}-${var.environment}-amplify-build-events"
-  description = "Capture Amplify build state changes (start/success/failure only)"
-
-  event_pattern = jsonencode({
-    source      = ["aws.amplify"]
-    detail-type = ["Amplify Deployment Status Change"]
-    detail = {
-      appId     = [aws_amplify_app.main.id]
-      jobStatus = ["STARTED", "SUCCEED", "FAILED"]
-    }
-  })
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-amplify-build-events"
-    Environment = var.environment
-    Project     = var.project_name
+  egress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
   }
 }
 
-# EventBridge Target (SNS)
-resource "aws_cloudwatch_event_target" "amplify_build_sns" {
-  count     = var.enable_notifications ? 1 : 0
-  rule      = aws_cloudwatch_event_rule.amplify_build[0].name
-  target_id = "SendToSNS"
-  arn       = aws_sns_topic.amplify_notifications[0].arn
+# Public サブネット A と NACL を関連付け
+resource "aws_network_acl_association" "public_a" {
+  subnet_id        = aws_subnet.public_a.id
+  network_acl_id = aws_network_acl.public.id
+}
 
-  input_transformer {
-    input_paths = {
-      appId      = "$.detail.appId"
-      branchName = "$.detail.branchName"
-      jobId      = "$.detail.jobId"
-      jobStatus  = "$.detail.jobStatus"
-    }
-    input_template = "\"【Amplify ビルド通知】 ブランチ: <branchName> | ステータス: <jobStatus> | ジョブID: <jobId>\""
+# Public サブネット B と NACL を関連付け
+resource "aws_network_acl_association" "public_b" {
+  subnet_id        = aws_subnet.public_b.id
+  network_acl_id = aws_network_acl.public.id
+}
+
+# Private App サブネット用の Network ACL
+resource "aws_network_acl" "private_app" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "private-app-nacl" }
+
+  # Inbound Rules
+  ingress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.public_subnet_a_cidr
+    from_port  = 80
+    to_port    = 80
+  }
+  ingress {
+    rule_no    = 101
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.public_subnet_b_cidr
+    from_port  = 80
+    to_port    = 80
+  }
+  ingress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_db_subnet_a_cidr
+    from_port  = 1024 # Ephemeral port for DB return traffic
+    to_port    = 65535
+  }
+  ingress {
+    rule_no    = 111
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_db_subnet_b_cidr
+    from_port  = 1024 # Ephemeral port for DB return traffic
+    to_port    = 65535
+  }
+  ingress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway からの戻りトラフィック
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  # Outbound Rules
+  egress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_db_subnet_a_cidr
+    from_port  = 3306
+    to_port    = 3306
+  }
+  egress {
+    rule_no    = 101
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_db_subnet_b_cidr
+    from_port  = 3306
+    to_port    = 3306
+  }
+  egress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway 経由でのインターネットアクセス
+    from_port  = 443
+    to_port    = 443
+  }
+  egress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.public_subnet_a_cidr
+    from_port  = 1024 # ALB への戻りトラフィック
+    to_port    = 65535
+  }
+  egress {
+    rule_no    = 121
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.public_subnet_b_cidr
+    from_port  = 1024 # ALB への戻りトラフィック
+    to_port    = 65535
+  }
+  egress {
+    rule_no    = 130
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway からの戻りトラフィック
+    from_port  = 1024
+    to_port    = 65535
   }
 }
 
-output "amplify_app_id" {
-  description = "Amplify App ID"
-  value       = aws_amplify_app.main.id
+# Private App サブネット A と NACL を関連付け
+resource "aws_network_acl_association" "private_app_a" {
+  subnet_id        = aws_subnet.private_app_a.id
+  network_acl_id = aws_network_acl.private_app.id
 }
 
-output "amplify_app_arn" {
-  description = "Amplify App ARN"
-  value       = aws_amplify_app.main.arn
+# Private App サブネット B と NACL を関連付け
+resource "aws_network_acl_association" "private_app_b" {
+  subnet_id        = aws_subnet.private_app_b.id
+  network_acl_id = aws_network_acl.private_app.id
 }
 
-output "amplify_default_domain" {
-  description = "Amplify default domain"
-  value       = aws_amplify_app.main.default_domain
+# Private DB サブネット用の Network ACL
+resource "aws_network_acl" "private_db" {
+  vpc_id = aws_vpc.main.id
+  tags   = { Name = "private-db-nacl" }
+
+  # Inbound Rules
+  ingress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_app_subnet_a_cidr
+    from_port  = 3306
+    to_port    = 3306
+  }
+  ingress {
+    rule_no    = 101
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_app_subnet_b_cidr
+    from_port  = 3306
+    to_port    = 3306
+  }
+  ingress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway からの戻りトラフィック
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  # Outbound Rules
+  egress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_app_subnet_a_cidr
+    from_port  = 1024 # App への戻りトラフィック
+    to_port    = 65535
+  }
+  egress {
+    rule_no    = 101
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.private_app_subnet_b_cidr
+    from_port  = 1024 # App への戻りトラフィック
+    to_port    = 65535
+  }
+  egress {
+    rule_no    = 110
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway 経由でのインターネットアクセス
+    from_port  = 443
+    to_port    = 443
+  }
+  egress {
+    rule_no    = 120
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = "0.0.0.0/0" # NAT Gateway からの戻りトラフィック
+    from_port  = 1024
+    to_port    = 65535
+  }
 }
 
-output "amplify_branch_url" {
-  description = "Amplify branch URL"
-  value       = "https://${var.repository_branch}.${aws_amplify_app.main.default_domain}"
+# Private DB サブネット A と NACL を関連付け
+resource "aws_network_acl_association" "private_db_a" {
+  subnet_id        = aws_subnet.private_db_a.id
+  network_acl_id = aws_network_acl.private_db.id
 }
 
-output "website_url" {
-  description = "Website URL"
-  value       = var.domain_name != "" ? "https://${var.domain_name}" : "https://${var.repository_branch}.${aws_amplify_app.main.default_domain}"
+# Private DB サブネット B と NACL を関連付け
+resource "aws_network_acl_association" "private_db_b" {
+  subnet_id        = aws_subnet.private_db_b.id
+  network_acl_id = aws_network_acl.private_db.id
 }
 
-output "amplify_webhook_url" {
-  description = "Webhook URL for manual deployments"
-  value       = aws_amplify_webhook.main.url
-  sensitive   = true
-}
-
-output "amplify_console_url" {
-  description = "Amplify Console URL"
-  value       = "https://console.aws.amazon.com/amplify/home?region=${var.aws_region}#/${aws_amplify_app.main.id}"
-}
-
-output "domain_association_status" {
-  description = "Domain association status"
-  value       = var.domain_name != "" ? aws_amplify_domain_association.main[0].certificate_verification_dns_record : null
-}
+output "alb_dns_name" { value = aws_lb.alb.dns_name }
