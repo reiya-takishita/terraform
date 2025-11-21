@@ -14,7 +14,7 @@ provider "aws" {
 # VPC の CIDR ブロックを変更
 resource "aws_vpc" "main" {
   cidr_block = var.vpc_cidr
-  tags       = { Name = "three-tier-vpc" }
+  tags       = { Name = "three-tier-vpc-test" }
 }
 
 # Public サブネット A (ap-northeast-1a)
