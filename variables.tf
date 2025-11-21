@@ -22,4 +22,44 @@ variable "web_instance_type" {
   default     = "t3.micro"
 }
 
+variable "bucket_name" {
+  description = "S3バケット名"
+  type        = string
+  default     = "example-bucket-12345"
+}
 
+variable "s3_versioning_enabled" {
+  description = "S3バージョニングを有効にする"
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_price_class" {
+  description = "CloudFront価格クラス"
+  type        = string
+  default     = "PriceClass_100"
+}
+
+variable "environment" {
+  description = "Environment (dev, stg, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "environment2" {
+  description = "Environment (dev, stg, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "repository_url" {
+  description = "Git repository URL (GitHub, GitLab, Bitbucket, CodeCommit)"
+  type        = string
+  default     = "your-repository-url"
+}
+
+variable "repository_branch" {
+  description = "Git branch to deploy"
+  type        = string
+  default     = "main"
+}

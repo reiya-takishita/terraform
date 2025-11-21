@@ -13,41 +13,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "ap-northeast-1"
-}
-
-variable "project_name" {
-  description = "Project name for resource naming"
-  type        = string
-  default     = "amplify-hosting"
-}
-
-variable "environment" {
-  description = "Environment (dev, stg, pro1d)"
-  type        = string
-  default     = "dev"
-}
-variable "environment2" {
-  description = "Environment (dev, stg, pro1d)"
-  type        = string
-  default     = "dev"
-}
-
-variable "repository_url" {
-  description = "Git repository URL (GitHub, GitLab, Bitbucket, CodeCommit)"
-  type        = string
-  default     = "your-repository-url"
-}
-
-variable "repository_branch" {
-  description = "Git branch to deploy"
-  type        = string
-  default     = "main"
-}
-
 variable "github_access_token" {
   description = "GitHub personal access token (required for GitHub repositories)"
   type        = string
