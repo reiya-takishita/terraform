@@ -62,10 +62,15 @@ variable "az_b" {
 variable "s3_bucket_name" {
   description = "Name of the S3 bucket"
   type        = string
+  default     = "my-unique-application-bucket-12345" # グローバルで一意な名前に変更してください
 }
 
 # S3バケットのタグを定義
 variable "s3_bucket_tags" {
   description = "Tags for the S3 bucket"
   type        = map(string)
+  default = {
+    Name        = "application-bucket"
+    Environment = "dev"
+  }
 }
