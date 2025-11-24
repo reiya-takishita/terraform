@@ -1,10 +1,8 @@
-region = "ap-northeast-1"
-vpc_cidr = "10.0.0.0/16"
-public_subnet_a_cidr = "10.0.1.0/24"
-public_subnet_b_cidr = "10.0.2.0/24"
-private_app_subnet_a_cidr = "10.0.11.0/24"
-private_app_subnet_b_cidr = "10.0.12.0/24"
-private_db_subnet_a_cidr = "10.0.21.0/24"
-private_db_subnet_b_cidr = "10.0.22.0/24"
-az_a = "ap-northeast-1a"
-az_b = "ap-northeast-1b"
+# S3バケット名
+s3_bucket_name = "your-unique-s3-bucket-name"
+
+# S3バケットのタグ
+s3_bucket_tags = {
+  Name        = "three-tier-app-bucket"
+  Environment = "Development"
+}

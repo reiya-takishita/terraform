@@ -57,3 +57,15 @@ variable "az_b" {
   type        = string
   default     = "ap-northeast-1b" # お使いのリージョンに合わせて変更してください
 }
+
+# S3バケット名を定義
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket"
+  type        = string
+}
+
+# S3バケットのタグを定義
+variable "s3_bucket_tags" {
+  description = "Tags for the S3 bucket"
+  type        = map(string)
+}
