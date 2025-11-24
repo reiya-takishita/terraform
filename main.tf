@@ -487,4 +487,37 @@ resource "aws_network_acl_association" "private_db_b" {
   network_acl_id = aws_network_acl.private_db.id
 }
 
+# S3メインバケットを作成
+resource "aws_s3_bucket" "this" {
+  bucket = var.s3_bucket_name
+  tags   = var.s3_bucket_tags
+}
+
+# S3バケットのすべてのパブリックアクセスをブロック
+resource "aws_s3_bucket_public_access_block" "this" {
+  bucket                  = aws_s3_bucket.this.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# S3バケットでバージョニングを有効化
+resource "aws_s3_bucket_versioning" "this" {
+  bucket = aws_s3_bucket.this.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# S3バケットのデフォルト暗号化にSSE-S3 (AES256) を設定
+resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 output "alb_dns_name" { value = aws_lb.alb.dns_name }
