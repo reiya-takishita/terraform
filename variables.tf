@@ -1,65 +1,76 @@
-variable "aws_region" {
-  description = "AWSリージョン"
+variable "region" {
+  description = "AWS region2"
   type        = string
-  default     = "ap-northeast-1"
-}
-
-variable "project_name" {
-  description = "リソース名のプレフィックス"
-  type        = string
-  default     = "example10"
+  default     = "ap-northeast-1" # お使いのリージョンに合わせて変更してください
 }
 
 variable "vpc_cidr" {
-  description = "VPCのCIDRブロック"
+  description = "CIDR block for the VPC"
   type        = string
   default     = "10.0.0.0/16"
 }
 
-variable "web_instance_type" {
-  description = "WebサーバーEC2のインスタンスタイプ"
+variable "public_subnet_a_cidr" {
+  description = "CIDR block for Public Subnet A"
   type        = string
-  default     = "t3.micro"
+  default     = "10.0.1.0/24"
 }
 
-variable "bucket_name" {
-  description = "S3バケット名"
+variable "public_subnet_b_cidr" {
+  description = "CIDR block for Public Subnet B"
   type        = string
-  default     = "example-bucket-12345"
+  default     = "10.0.2.0/24"
 }
 
-variable "s3_versioning_enabled" {
-  description = "S3バージョニングを有効にする"
-  type        = bool
-  default     = true
+variable "private_app_subnet_a_cidr" {
+  description = "CIDR block for Private App Subnet A"
+  type        = string
+  default     = "10.0.11.0/24"
 }
 
-variable "cloudfront_price_class" {
-  description = "CloudFront価格クラス"
+variable "private_app_subnet_b_cidr" {
+  description = "CIDR block for Private App Subnet B"
   type        = string
-  default     = "PriceClass_100"
+  default     = "10.0.12.0/24"
 }
 
-variable "environment" {
-  description = "Environment (dev, stg, prod)"
+variable "private_db_subnet_a_cidr" {
+  description = "CIDR block for Private DB Subnet A"
   type        = string
-  default     = "dev"
+  default     = "10.0.21.0/24"
 }
 
-variable "environment2" {
-  description = "Environment (dev, stg, prod)"
+variable "private_db_subnet_b_cidr" {
+  description = "CIDR block for Private DB Subnet B"
   type        = string
-  default     = "dev"
+  default     = "10.0.22.0/24"
 }
 
-variable "repository_url" {
-  description = "Git repository URL (GitHub, GitLab, Bitbucket, CodeCommit)"
+variable "az_a" {
+  description = "Availability Zone A"
   type        = string
-  default     = "your-repository-url"
+  default     = "ap-northeast-1a" # お使いのリージョンに合わせて変更してください
 }
 
-variable "repository_branch" {
-  description = "Git branch to deploy"
+variable "az_b" {
+  description = "Availability Zone B"
   type        = string
-  default     = "main"
+  default     = "ap-northeast-1b" # お使いのリージョンに合わせて変更してください
+}
+
+# S3バケット名を定義
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket"
+  type        = string
+  default     = "my-unique-application-bucket-12345" # グローバルで一意な名前に変更してください
+}
+
+# S3バケットのタグを定義
+variable "s3_bucket_tags" {
+  description = "Tags for the S3 bucket"
+  type        = map(string)
+  default = {
+    Name        = "application-bucket"
+    Environment = "dev"
+  }
 }
