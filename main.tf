@@ -14,7 +14,7 @@ provider "aws" {
 module "amplify" {
   source = "./modules/amplify"
 
-  aws_region        = var.aws_region
+  aws_region        = var.region
   project_name      = var.project_name
   environment       = var.environment
   repository_url    = var.repository_url

@@ -74,3 +74,27 @@ variable "s3_bucket_tags" {
     Environment = "dev"
   }
 }
+
+variable "project_name" {
+  description = "リソース名のプレフィックス"
+  type        = string
+  default     = "example10"
+}
+
+variable "environment" {
+  description = "Environment (dev, stg, prod)"
+  type        = string
+  default     = "dev"
+}
+
+variable "repository_url" {
+  description = "Git repository URL (GitHub, GitLab, Bitbucket, CodeCommit)"
+  type        = string
+  default     = "your-repository-url"
+}
+
+variable "repository_branch" {
+  description = "Git branch to deploy"
+  type        = string
+  default     = "main"
+}
