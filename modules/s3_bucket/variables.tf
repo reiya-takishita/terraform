@@ -62,17 +62,47 @@ variable "enable_versioning" {
 
 # ライフサイクルルール
 variable "lifecycle_rules" {
-  description = "バケットのライフサイクルルールのリスト。"
+  description = "バケットのライフサイクルルールのリスト。現行バージョンおよび旧バージョンの移行と有効期限設定を定義します。"
   type = list(object({
-    id                        = string
-    status                    = string # "Enabled" or "Disabled"
-    expiration_days           = number # オブジェクトを期限切れにする日数 (nullの場合、設定しない)
-    transition_days           = number # オブジェクトを移行する日数 (nullの場合、設定しない)
-    transition_storage_class  = string # 移行先のストレージクラス (e.g., GLACIER, STANDARD_IA) (nullの場合、設定しない)
+    id     = string
+    status = string # "Enabled" or "Disabled"
+
+    # Filter for the rule (optional)
+    filter = optional(object({
+      prefix = optional(string)
+      tags   = optional(map(string))
+      # object_size_greater_than, object_size_less_than なども追加可能ですが、今回は簡易化
+    }))
+
+    # Current version expiration (optional)
+    expiration = optional(object({
+      days                         = optional(number)
+      date                         = optional(string) # RFC3339 format (例: "2023-01-01T00:00:00Z")
+      expired_object_delete_marker = optional(bool)
+    }))
+
+    # Noncurrent version expiration (optional)
+    noncurrent_version_expiration = optional(object({
+      noncurrent_days = number # 非現行バージョンのオブジェクトを期限切れにする日数
+    }))
+
+    # Current version transitions (optional)
+    transitions = optional(list(object({
+      days          = optional(number)
+      date          = optional(string) # RFC3339 format
+      storage_class = string # (例: GLACIER, STANDARD_IA, ONEZONE_IA, DEEP_ARCHIVE, GLACIER_IR)
+    })))
+
+    # Noncurrent version transitions (optional)
+    noncurrent_version_transitions = optional(list(object({
+      noncurrent_days = number # 非現行バージョンのオブジェクトを移行する日数
+      storage_class   = string # (例: GLACIER, STANDARD_IA, ONEZONE_IA, DEEP_ARCHIVE, GLACIER_IR)
+    })))
+    # Abort incomplete multipart uploads (optional)
+    abort_incomplete_multipart_upload_days = optional(number)
   }))
   default = []
 }
-
 # サーバーサイド暗号化アルゴリズム
 variable "sse_algorithm" {
   description = "使用するサーバーサイド暗号化アルゴリズム。有効な値は `AES256` と `aws:kms` です。"

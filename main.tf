@@ -37,7 +37,7 @@ module "s3_bucket" {
   # 必要に応じてここでオーバーライドできます
   # acl           = "private"
   # force_destroy = false
-  # enable_versioning = true
+  enable_versioning = var.enable_s3_versioning # S3バケットのバージョン管理を有効化
   # lifecycle_rules = [
   #   {
   #     id                        = "expire-old-versions"
@@ -51,4 +51,12 @@ module "s3_bucket" {
   # enable_logging    = true
   # target_bucket_name = "your-s3-log-bucket-name" # ログバケットは別途作成または既存を指定
   # target_prefix     = "s3-access-logs/"
+}
+
+# CloudFront OACからのアクセスを許可するため、S3バケットのOwnership Controlsを設定
+resource "aws_s3_bucket_ownership_controls" "static_content_bucket_ownership" {
+  bucket = module.s3_bucket.bucket_id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
 }

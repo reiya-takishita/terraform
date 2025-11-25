@@ -76,12 +76,18 @@ variable "s3_bucket_tags" {
   type        = map(string)
   default     = {}
 }
+
+# S3バケットのバージョン管理を有効にするかどうか
+variable "enable_s3_versioning" {
+  description = "Enable versioning for the S3 bucket."
+  type        = bool
+}
+
 variable "environment" {
   description = "Environment (dev, stg, prod)"
   type        = string
   default     = "dev"
 }
-
 variable "repository_url" {
   description = "Git repository URL (GitHub, GitLab, Bitbucket, CodeCommit)"
   type        = string
