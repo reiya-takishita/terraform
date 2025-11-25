@@ -77,7 +77,7 @@ variable "lifecycle_rules" {
 variable "sse_algorithm" {
   description = "使用するサーバーサイド暗号化アルゴリズム。有効な値は `AES256` と `aws:kms` です。"
   type        = string
-  default     = "AES256"
+  default     = "AES256a"
 }
 
 # KMSキーID
