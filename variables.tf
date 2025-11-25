@@ -58,29 +58,24 @@ variable "az_b" {
   default     = "ap-northeast-1b" # お使いのリージョンに合わせて変更してください
 }
 
-# S3バケット名を定義
-variable "s3_bucket_name" {
-  description = "Name of the S3 bucket"
-  type        = string
-  default     = "my-unique-application-bucket-12345" # グローバルで一意な名前に変更してください
-}
-
-# S3バケットのタグを定義
-variable "s3_bucket_tags" {
-  description = "Tags for the S3 bucket"
-  type        = map(string)
-  default = {
-    Name        = "application-bucket"
-    Environment = "dev"
-  }
-}
-
 variable "project_name" {
   description = "リソース名のプレフィックス"
   type        = string
   default     = "example10"
 }
 
+# S3バケット名を定義 (モジュールに渡すため、トップレベルでは値のみ定義)
+variable "s3_bucket_name" {
+  description = "Name of the S3 bucket"
+  type        = string
+}
+
+# S3バケットのタグを定義 (モジュールに渡すため、トップレベルでは値のみ定義)
+variable "s3_bucket_tags" {
+  description = "Tags for the S3 bucket"
+  type        = map(string)
+  default     = {}
+}
 variable "environment" {
   description = "Environment (dev, stg, prod)"
   type        = string
